@@ -1,101 +1,138 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Pinecone } from '@pinecone-database/pinecone';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
+const pc = new Pinecone({
+  apiKey: 'pcsk_6MpTEm_7VaqKShPByFSKTcTVE8hG3t9EyPpanzQcmFLRztsHbqGsZFXTWd7ZUYCHV3q5S9',
+});
+
+const genAI = new GoogleGenerativeAI('AIzaSyAOdtyU99g9xBbqCL1iltjDs31R7VjBOVE');
+
+async function generateEmbeddings(text) {
+  const model = genAI.getGenerativeModel({ model: 'embedding-001' });
+  const result = await model.embedContent(text);
+  const embedding = Array.isArray(result.embedding) ? result.embedding : Object.values(result.embedding);
+  return embedding;
+}
+
+const generationConfig = {
+  temperature: 1,
+  topP: 0.95,
+  topK: 40,
+  maxOutputTokens: 8192,
+  responseMimeType: 'text/plain',
+};
+
+async function fetchAIResponse(userQuery) {
+  const queryEmbedding = await generateEmbeddings(userQuery);
+
+  const searchResults = await pc
+    .index('fashion')
+    .namespace('4cc30482-b27e-46be-96e1-a8947bcf8d1b')
+    .query({
+      vector: queryEmbedding,
+      topK: 5,
+      includeMetadata: true,
+    });
+
+  const relevantContext = searchResults.matches.map((match) => match.metadata.text).join(' ');
+
+  const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+  const chat = model.startChat({
+    history: [
+      {
+        role: 'user',
+        parts: [{ text: `Based on the following context: ${relevantContext}, answer the query: "${userQuery}"` }],
+      },
+    ],
+  });
+
+  let fullResponse = '';
+  const resultStream = await chat.sendMessageStream(userQuery, generationConfig);
+
+  for await (const chunk of resultStream.stream) {
+    fullResponse += chunk.text();
+  }
+
+  return fullResponse;
+}
+
+export default function Chat() {
+  const [input, setInput] = useState('');
+  const [messages, setMessages] = useState([]);
+  const [isTyping, setIsTyping] = useState(false);
+
+  const handleInputChange = (e) => {
+    setInput(e.target.value);
+  };
+
+  const onSubmit = async (e) => {
+    e.preventDefault();
+    if (!input.trim()) return;
+
+    const userMessage = { id: Date.now(), role: 'user', content: input.trim() };
+    setMessages((prev) => [...prev, userMessage]);
+    setInput('');
+    setIsTyping(true);
+
+    try {
+      const aiResponse = await fetchAIResponse(userMessage.content);
+      const aiMessage = { id: Date.now(), role: 'ai', content: aiResponse };
+      setMessages((prev) => [...prev, aiMessage]);
+    } catch (error) {
+      console.error('Error fetching AI response:', error);
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.js
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+    <div className="flex items-center justify-center min-h-screen bg-gray-100">
+      <Card className="w-full max-w-2xl">
+        <CardHeader>
+          <CardTitle>AI Chat</CardTitle>
+        </CardHeader>
+        <CardContent className="h-[60vh] overflow-y-auto">
+          {messages.map((m) => (
+            <div key={m.id} className={`mb-4 ${m.role === 'user' ? 'text-right' : 'text-left'}`}>
+              <span
+                className={`inline-block p-2 rounded-lg ${
+                  m.role === 'user'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-200 text-black'
+                }`}
+              >
+                {m.content}
+              </span>
+            </div>
+          ))}
+          {isTyping && (
+            <div className="text-left">
+              <span className="inline-block p-2 rounded-lg bg-gray-200 text-black">
+                AI is typing...
+              </span>
+            </div>
+          )}
+        </CardContent>
+        <CardFooter>
+          <form onSubmit={onSubmit} className="flex w-full space-x-2">
+            <Input
+              value={input}
+              onChange={handleInputChange}
+              placeholder="Type your message..."
+              className="flex-grow"
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+            <Button type="submit" disabled={isTyping}>
+              Send
+            </Button>
+          </form>
+        </CardFooter>
+      </Card>
     </div>
   );
 }
