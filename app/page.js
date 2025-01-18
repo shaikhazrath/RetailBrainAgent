@@ -6,13 +6,12 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Pinecone } from '@pinecone-database/pinecone';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { stripIndents } from './stripindents';
-import Image from 'next/image';
 
 const pc = new Pinecone({
   apiKey: 'pcsk_6MpTEm_7VaqKShPByFSKTcTVE8hG3t9EyPpanzQcmFLRztsHbqGsZFXTWd7ZUYCHV3q5S9',
 });
 
-const genAI = new GoogleGenerativeAI('AIzaSyAOdtyU99g9xBbqCL1iltjDs31R7VjBOVE');
+const genAI = new GoogleGenerativeAI('AIzaSyAfMcjDE5LkLCm4W9JDx6TGc5AD7awF8eI');
 
 async function generateEmbeddings(text) {
   const model = genAI.getGenerativeModel({ model: 'embedding-001' });
@@ -139,45 +138,43 @@ export default function Chat() {
           <CardTitle>AI Chat</CardTitle>
         </CardHeader>
         <CardContent className="h-[60vh] overflow-y-auto">
-          {/* Render both user and AI messages */}
           {messages.map((message) => (
             <div
               key={message.id}
               className={`mb-4 ${message.role === 'user' ? 'text-right' : 'text-left'}`}
             >
               <span
-                className={`inline-block p-2 rounded-lg ${
-                  message.role === 'user' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'
-                }`}
+                className={`inline-block p-2 rounded-lg ${message.role === 'user' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'
+                  }`}
               >
-             {message.role === 'user' ? (
-  message.content
-) : (
-  <div className="grid grid-cols-2 gap-4">
-    {message.content
-      .filter((product) => product.productImage) // Filter out products without images
-      .map((product, index) => (
-        <div key={index} className="p-2 border rounded-lg">
-          <img
-            src={product.productImage}
-            alt={product.productName}
-            className="w-full h-48 object-cover mb-2"
-            onError={(e) => (e.target.parentNode.style.display = 'none')} // Hide the entire product if the image fails to load
-          />
-          <h3 className="font-semibold">{product.productName}</h3>
-          <p className="text-sm">{product.productPrice}</p>
-          <a
-            href={product.productUrl}
-            className="text-blue-500"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            View Product
-          </a>
-        </div>
-      ))}
-  </div>
-)}
+                {message.role === 'user' ? (
+                  message.content
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    {message.content
+                      .filter((product) => product.productImage)
+                      .map((product, index) => (
+                        <div key={index} className="p-2 border rounded-lg">
+                          <img
+                            src={product.productImage}
+                            alt={product.productName}
+                            className="w-full h-48 object-cover mb-2"
+                            onError={(e) => (e.target.parentNode.style.display = 'none')} // Hide the entire product if the image fails to load
+                          />
+                          <h3 className="font-semibold">{product.productName}</h3>
+                          <p className="text-sm">{product.productPrice}</p>
+                          <a
+                            href={product.productUrl}
+                            className="text-blue-500"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            View Product
+                          </a>
+                        </div>
+                      ))}
+                  </div>
+                )}
 
               </span>
             </div>
