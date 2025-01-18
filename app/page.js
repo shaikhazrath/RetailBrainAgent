@@ -1,11 +1,12 @@
-'use client';
-
-import { useState } from 'react';
+'use client'
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Pinecone } from '@pinecone-database/pinecone';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { stripIndents } from './stripindents';
+import Image from 'next/image';
 
 const pc = new Pinecone({
   apiKey: 'pcsk_6MpTEm_7VaqKShPByFSKTcTVE8hG3t9EyPpanzQcmFLRztsHbqGsZFXTWd7ZUYCHV3q5S9',
@@ -25,7 +26,30 @@ const generationConfig = {
   topP: 0.95,
   topK: 40,
   maxOutputTokens: 8192,
-  responseMimeType: 'text/plain',
+  responseMimeType: "application/json",
+  responseSchema: {
+    type: "object",
+    properties: {
+      productName: {
+        type: "string"
+      },
+      productUrl: {
+        type: "string"
+      },
+      productPrice: {
+        type: "string"
+      },
+      productImage: {
+        type: "string"
+      },
+      productCategory: {
+        type: "string"
+      },
+      productColor: {
+        type: "string"
+      }
+    }
+  },
 };
 
 async function fetchAIResponse(userQuery) {
@@ -33,7 +57,7 @@ async function fetchAIResponse(userQuery) {
 
   const searchResults = await pc
     .index('fashion')
-    .namespace('4cc30482-b27e-46be-96e1-a8947bcf8d1b')
+    .namespace('fff3cb26-15f5-41ce-b06c-d573ad93ee88')
     .query({
       vector: queryEmbedding,
       topK: 5,
@@ -42,12 +66,21 @@ async function fetchAIResponse(userQuery) {
 
   const relevantContext = searchResults.matches.map((match) => match.metadata.text).join(' ');
 
-  const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-1.5-pro',
+    systemInstruction:
+      "act as you was a retail store with girls cloths the girl will tell you the product and situation you need to give prouduct based on the given context only not outside the contexty recomand 4 products only i want response in format of {productName:string,productUrl:string,productPrice:string,productImage:string,productCategory:string,productColor:string} respond me in json format only no text more than that",
+  });
+
   const chat = model.startChat({
     history: [
       {
         role: 'user',
-        parts: [{ text: `Based on the following context: ${relevantContext}, answer the query: "${userQuery}"` }],
+        parts: [
+          {
+            text: `Based on the following context: ${relevantContext},recommend products for : "${userQuery} answer should be from context only"`,
+          },
+        ],
       },
     ],
   });
@@ -59,12 +92,21 @@ async function fetchAIResponse(userQuery) {
     fullResponse += chunk.text();
   }
 
-  return fullResponse;
+  try {
+    const cleanedResponse = stripIndents(fullResponse);
+
+    const aiProducts = JSON.parse(cleanedResponse);
+    return aiProducts;
+  } catch (error) {
+    console.error('Error parsing AI response as JSON:', error);
+    return []; // Return an empty array as fallback
+  }
 }
+
 
 export default function Chat() {
   const [input, setInput] = useState('');
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState([]); // Store messages as an array of objects
   const [isTyping, setIsTyping] = useState(false);
 
   const handleInputChange = (e) => {
@@ -76,14 +118,13 @@ export default function Chat() {
     if (!input.trim()) return;
 
     const userMessage = { id: Date.now(), role: 'user', content: input.trim() };
-    setMessages((prev) => [...prev, userMessage]);
-    setInput('');
+    setMessages((prevMessages) => [...prevMessages, userMessage]); // Add user message to chat
     setIsTyping(true);
 
     try {
-      const aiResponse = await fetchAIResponse(userMessage.content);
-      const aiMessage = { id: Date.now(), role: 'ai', content: aiResponse };
-      setMessages((prev) => [...prev, aiMessage]);
+      const aiProducts = await fetchAIResponse(userMessage.content);
+      const aiMessage = { id: Date.now(), role: 'ai', content: aiProducts }; // AI response
+      setMessages((prevMessages) => [...prevMessages, aiMessage]); // Add AI response to chat
     } catch (error) {
       console.error('Error fetching AI response:', error);
     } finally {
@@ -98,16 +139,46 @@ export default function Chat() {
           <CardTitle>AI Chat</CardTitle>
         </CardHeader>
         <CardContent className="h-[60vh] overflow-y-auto">
-          {messages.map((m) => (
-            <div key={m.id} className={`mb-4 ${m.role === 'user' ? 'text-right' : 'text-left'}`}>
+          {/* Render both user and AI messages */}
+          {messages.map((message) => (
+            <div
+              key={message.id}
+              className={`mb-4 ${message.role === 'user' ? 'text-right' : 'text-left'}`}
+            >
               <span
                 className={`inline-block p-2 rounded-lg ${
-                  m.role === 'user'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-200 text-black'
+                  message.role === 'user' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'
                 }`}
               >
-                {m.content}
+             {message.role === 'user' ? (
+  message.content
+) : (
+  <div className="grid grid-cols-2 gap-4">
+    {message.content
+      .filter((product) => product.productImage) // Filter out products without images
+      .map((product, index) => (
+        <div key={index} className="p-2 border rounded-lg">
+          <img
+            src={product.productImage}
+            alt={product.productName}
+            className="w-full h-48 object-cover mb-2"
+            onError={(e) => (e.target.parentNode.style.display = 'none')} // Hide the entire product if the image fails to load
+          />
+          <h3 className="font-semibold">{product.productName}</h3>
+          <p className="text-sm">{product.productPrice}</p>
+          <a
+            href={product.productUrl}
+            className="text-blue-500"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            View Product
+          </a>
+        </div>
+      ))}
+  </div>
+)}
+
               </span>
             </div>
           ))}
