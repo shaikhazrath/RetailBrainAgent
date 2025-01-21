@@ -136,8 +136,6 @@ export default function Chat() {
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
       <Card className="w-full max-w-2xl ">
 <CardHeader className="flex items-center justify-between flex-row h-5">
- 
-    <CardTitle className="text-xl font-semibold">AI Chat</CardTitle>
     <img
       src="logo.png" // Replace with your logo path
       alt="Company Logo"
