@@ -6,6 +6,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Pinecone } from '@pinecone-database/pinecone';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { stripIndents } from './stripindents';
+import Image from 'next/image';
 
 const pc = new Pinecone({
   apiKey: 'pcsk_6MpTEm_7VaqKShPByFSKTcTVE8hG3t9EyPpanzQcmFLRztsHbqGsZFXTWd7ZUYCHV3q5S9',
@@ -133,10 +134,19 @@ export default function Chat() {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <Card className="w-full max-w-2xl">
-        <CardHeader>
-          <CardTitle>AI Chat</CardTitle>
-        </CardHeader>
+      <Card className="w-full max-w-2xl ">
+<CardHeader className="flex items-center justify-between flex-row h-5">
+ 
+    <CardTitle className="text-xl font-semibold">AI Chat</CardTitle>
+    <img
+      src="logo.png" // Replace with your logo path
+      alt="Company Logo"
+      width={100}
+      height={100}
+    />
+</CardHeader>
+
+
         <CardContent className="h-[60vh] overflow-y-auto">
           {messages.map((message) => (
             <div
